@@ -1,0 +1,111 @@
+# =============================================================================
+# TicoTax SaaS — Entorno de desarrollo local
+# Épica TICOTAX-100 | Sprint 1 (Semanas 1 y 2) | Historia TICOTAX-102
+# DoD cubierto: "Entorno local funcional con Docker Compose"
+# Servicios de datos (PostgreSQL, PgBouncer, Redis).
+# Los servicios de la aplicación (parser, api, frontend) se agregan más adelante.
+# =============================================================================
+
+name: ticotax
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+
+  # ===========================================================================
+  # PostgreSQL 15 — BD principal
+  # ===========================================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: ticotax-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
+      TZ: ${CR_TIMEZONE}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      # FIX: Mapeado a 5433 local para NO colisionar con PgBouncer en el 5432
+      - "127.0.0.1:5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    logging: *default-logging
+    networks: [ticotax-net]
+
+  # ===========================================================================
+  # PgBouncer 1.22 — Connection pool
+  # ===========================================================================
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    container_name: ticotax-pgbouncer
+    restart: unless-stopped
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"  # FIX: Puerto interno de la red Docker de Postgres
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB}
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: "1000"
+      DEFAULT_POOL_SIZE: "20"
+      AUTH_TYPE: scram-sha-256
+      ADMIN_USERS: ${POSTGRES_USER}
+      TZ: ${CR_TIMEZONE}
+    ports:
+      # FIX: PgBouncer toma el puerto 5432 principal hacia la Mac
+      - "${PGBOUNCER_PORT_HOST:-5432}:5432"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # FIX: Test de salud corregido al puerto 5432
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    logging: *default-logging
+    networks: [ticotax-net]
+
+  # ===========================================================================
+  # Redis 7 — BD caché
+  # ===========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: ticotax-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
+    volumes:
+      - redisdata:/data
+    ports:
+      - "${REDIS_PORT_HOST:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    logging: *default-logging
+    networks: [ticotax-net]
+
+volumes:
+  pgdata:
+    name: ticotax-pgdata
+  redisdata:
+    name: ticotax-redisdata
+
+networks:
+  ticotax-net:
+    name: ticotax-net
+    driver: bridge
