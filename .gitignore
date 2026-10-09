@@ -1,0 +1,30 @@
+# =============================================================================
+# TicoTax — .gitignore
+# Transcrito literalmente del Plan Maestro v4.0, PARTE 4.3
+# "Secrets Management — Zero secrets en código"
+# =============================================================================
+
+# .gitignore — nunca subir estos archivos
+.env
+.env.local
+.env.production
+*.pem
+*.p12
+*.key
+*.crt
+secrets/
+terraform.tfvars
+
+# --- Agregados operativos estándar (no están en el Plan Maestro) -------------
+node_modules/
+dist/
+__pycache__/
+*.pyc
+.venv/
+.terraform/
+.DS_Store
+*.log
+*.tsbuildinfo
+__MACOSX/
+.idea/
+coverage/
