@@ -1,0 +1,32 @@
+# =============================================================================
+# TicoTax — Parser (Python 3.13 + FastAPI) — SOLO DESARROLLO LOCAL
+# Historia TICOTAX-102 (el código del parser es TICOTAX-202, Sprint 4)
+#
+# PARTE 2.1: "Microservicio | Python + FastAPI | 3.13 / 0.11x |
+#             Mejor ecosistema XML/criptografía en Python"
+# PARTE 2.1: "Contenedores | Docker (multi-stage) | Imágenes < 150MB via Alpine"
+#
+# ⚠ Este archivo es el de DEV (una sola etapa, con hot reload).
+#   El Dockerfile multi-stage de producción corresponde a la Épica TICOTAX-400
+#   (TICOTAX-401/402). No lo genero acá para no adelantar Sprints.
+# =============================================================================
+FROM python:3.13-alpine
+
+WORKDIR /app
+
+# Factor II (Dependencies): requirements.txt declara TODAS las deps.
+# "Sin deps implícitas del sistema" (PARTE 1, Factor II).
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+# Factor VII (Port binding): el Parser expone el 8000.
+EXPOSE 8000
+
+# Factor VI: proceso no-root
+RUN adduser -D -u 1001 parser
+USER parser
+
+# --reload solo en dev; en K8s se ejecuta sin reload (Factor V: build/release/run)
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

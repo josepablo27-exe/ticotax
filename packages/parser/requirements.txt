@@ -1,0 +1,64 @@
+# =============================================================================
+# TicoTax — Microservicio Parser (Python 3.13 + FastAPI)
+# Epica TICOTAX-100 | Sprint 1 | Historia TICOTAX-102 (andamiaje)
+#
+# Factor II (Dependencies) del Plan Maestro v4.0, PARTE 1:
+#   "package.json + requirements.txt declaran todas las deps.
+#    Sin deps implicitas del sistema"
+# Por eso todo va pineado con == y no con rangos.
+#
+# PROCEDENCIA:
+#   [D] DOCUMENTADO en el Plan Maestro
+#   [X] NO nombrado en el Plan Maestro — justificacion en la linea
+# =============================================================================
+
+# [D] PARTE 2.1: "Microservicio | Python + FastAPI | 3.13 / 0.11x"
+fastapi==0.115.6
+
+# [D] PARTE 2.1: "Validacion | Zod (Node) + Pydantic (Python)"
+pydantic==2.10.4
+
+# [X] NO nombrado. FastAPI es un framework ASGI: sin un servidor ASGI el
+#     proceso no arranca. uvicorn es el servidor de referencia de FastAPI.
+uvicorn[standard]==0.34.0
+
+# [X] NO nombrado. Factor III (Config) exige "100% en variables de entorno";
+#     pydantic-settings es la forma idiomatica de leerlas con validacion.
+pydantic-settings==2.7.0
+
+
+# =============================================================================
+# PENDIENTE — SE DEFINE EN TICOTAX-202 (Sprint 4, "Microservicio Parser Python")
+#
+# El Plan Maestro describe estas capacidades pero NO nombra ninguna libreria
+# para implementarlas. No las elijo por regla de Cero Invenciones:
+#
+#   · Validacion XSD del XML de Hacienda v4.3
+#     Evidencia: PARTE 7.1 -> "XSDValidationError ... at validateXSD (parser.py:45)"
+#     Libreria:  SIN DEFINIR
+#
+#   · Verificacion de firma digital del XML
+#     Evidencia: PARTE 6.2 -> 'firmaInvalida: "La firma digital del XML es
+#                invalida o fue alterada"'
+#                PARTE 9   -> fixture tests/fixtures/factura-firma-invalida.xml
+#     Libreria:  SIN DEFINIR
+#
+#   · Cliente HTTP hacia el BCCR para el tipo de cambio
+#     Evidencia: PARTE 4.1 (A10) -> "El parser Python llama al BCCR"
+#                BCCR_ALLOWED_HOST = gee.bccr.fi.cr
+#     Libreria:  SIN DEFINIR (el Plan Maestro muestra el guard en TypeScript
+#                con fetch(), no el equivalente Python)
+#
+# Traer estas decisiones al Sprint Planning de la semana 7.
+# =============================================================================
+
+# =============================================================================
+# NOTA DE BUILD — python:3.13-alpine
+# PARTE 2.1 exige base Alpine ("Imagenes < 150MB via Alpine base"). Alpine usa
+# musl, no glibc: si algun wheel no publica variante musllinux, pip intenta
+# compilar desde fuente y el build falla. Si eso pasa, en orden:
+#   1. Agregar al Dockerfile.dev, antes del pip install:
+#        RUN apk add --no-cache --virtual .build gcc musl-dev libffi-dev
+#   2. O reemplazar uvicorn[standard] por uvicorn (sin uvloop ni httptools)
+#   3. O cambiar la base a python:3.13-slim (se pierde el objetivo de < 150MB)
+# =============================================================================
