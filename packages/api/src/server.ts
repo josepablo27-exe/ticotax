@@ -2,7 +2,7 @@
 // TicoTax SaaS — API Gateway (Fastify)
 // Épica TICOTAX-100 | Sprint 3 | Historia TICOTAX-105
 //
-// Base de la API: healthchecks, seguridad (Helmet, CORS, rate limit) y Swagger.
+// Autenticación JWT: register, login y refresh (3 endpoints).
 // Los plugins y controladores están separados en archivos dedicados.
 //
 // [D] Plan Maestro PARTE 2.1: "Node.js + TypeScript + Fastify | 24.x / 4.x"
@@ -11,15 +11,40 @@
 // =============================================================================
 
 import 'dotenv/config';
-import Fastify, { FastifyInstance } from 'fastify';
+import Fastify, { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import fastifyJwt from '@fastify/jwt';
 import fastifyHelmet from '@fastify/helmet';
 import fastifyRateLimit from '@fastify/rate-limit';
 import fastifyCors from '@fastify/cors';
 import fastifySwagger from '@fastify/swagger';
 import fastifySwaggerUi from '@fastify/swagger-ui';
 import { PrismaClient } from '@prisma/client';
+import { ZodError } from 'zod';
 
 import { logger } from './logger';
+import { verifyJWT } from './verify-jwt.plugin';
+
+// Controladores
+import { AuthController } from './auth.controller';
+
+// =============================================================================
+// EXTENSIÓN DE TIPOS PARA FASTIFY
+// =============================================================================
+declare module 'fastify' {
+  interface FastifyInstance {
+    verifyJWT: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
+  }
+}
+
+// Schemas
+import {
+  RegisterSchema,
+  LoginSchema,
+  RefreshSchema,
+  RegisterInput,
+  LoginInput,
+  RefreshInput,
+} from './schemas';
 
 // =============================================================================
 // ESTADO GLOBAL
@@ -86,6 +111,30 @@ async function createApp() {
     routePrefix: '/docs',
   });
 
+  // [D] PARTE 3.1: JWT (Access Token 15min + Refresh Token 7 días)
+  // OWASP A02: sin secreto no arrancamos — un fallback hardcodeado es un
+  // secreto de facto que cualquiera puede leer en el código fuente.
+  const jwtSecret = process.env.JWT_SECRET;
+  if (!jwtSecret) {
+    throw new Error('JWT_SECRET es obligatorio (ver .env.example). La API no puede arrancar sin él.');
+  }
+
+  await instance.register(fastifyJwt, {
+    secret: jwtSecret,
+    sign: {
+      expiresIn: '15m',
+    },
+  });
+
+  // Registrar el plugin verifyJWT de forma global
+  instance.decorate('verifyJWT', verifyJWT);
+
+  // ---------------------------------------------------------------------------
+  // INSTANCIAR CONTROLADORES
+  // ---------------------------------------------------------------------------
+
+  const authController = new AuthController(prisma);
+
   // ---------------------------------------------------------------------------
   // HEALTHCHECKS
   // ---------------------------------------------------------------------------
@@ -129,8 +178,75 @@ async function createApp() {
       service: 'ticotax-api',
       version: '0.1.0',
       status: 'operational',
-      endpoints: {},
+      endpoints: {
+        auth: {
+          register: 'POST /auth/register',
+          login: 'POST /auth/login',
+          refresh: 'POST /auth/refresh',
+        },
+      },
     });
+  });
+
+  // ---------------------------------------------------------------------------
+  // RUTAS — AUTH (Públicas)
+  // ==========================================================================
+
+  instance.post<{ Body: RegisterInput }>('/auth/register', async (request, reply) => {
+    try {
+      request.body = RegisterSchema.parse(request.body);
+      return await authController.register(request, reply);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        return reply.status(400).send({
+          statusCode: 400,
+          message: 'Validación fallida',
+          errors: error.errors,
+          timestamp: new Date().toISOString(),
+        });
+      }
+      throw error;
+    }
+  });
+
+  instance.post<{ Body: LoginInput }>(
+    '/auth/login',
+    // OWASP A07: límite estricto por IP en login para frenar fuerza bruta,
+    // más agresivo que el límite global de la API.
+    { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
+    async (request, reply) => {
+      try {
+        request.body = LoginSchema.parse(request.body);
+        return await authController.login(request, reply);
+      } catch (error) {
+        if (error instanceof ZodError) {
+          return reply.status(400).send({
+            statusCode: 400,
+            message: 'Validación fallida',
+            errors: error.errors,
+            timestamp: new Date().toISOString(),
+          });
+        }
+        throw error;
+      }
+    }
+  );
+
+  instance.post<{ Body: RefreshInput }>('/auth/refresh', async (request, reply) => {
+    try {
+      request.body = RefreshSchema.parse(request.body);
+      return await authController.refresh(request, reply);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        return reply.status(400).send({
+          statusCode: 400,
+          message: 'Validación fallida',
+          errors: error.errors,
+          timestamp: new Date().toISOString(),
+        });
+      }
+      throw error;
+    }
   });
 
   // ---------------------------------------------------------------------------
@@ -188,7 +304,7 @@ async function start() {
         host: HOST,
         port: PORT,
         version: '0.1.0',
-        endpoints: 0,
+        endpoints: 3,
       },
       'TicoTax API iniciada y escuchando'
     );
