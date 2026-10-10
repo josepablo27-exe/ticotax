@@ -1,0 +1,53 @@
+flowchart TD
+    classDef inicioFin fill:#2C3E50,stroke:#1A252F,stroke-width:2px,color:#FFF,rx:15px;
+    classDef proceso fill:#EBF5FB,stroke:#2980B9,stroke-width:2px,color:#2C3E50;
+    classDef decision fill:#FDEDEC,stroke:#C0392B,stroke-width:2px,color:#2C3E50;
+    classDef bd fill:#EAFAF1,stroke:#27AE60,stroke-width:2px,color:#2C3E50;
+    classDef externo fill:#FEF9E7,stroke:#F1C40F,stroke-width:2px,color:#2C3E50;
+
+    %% Nodos
+    INICIO([👤 Inicio: Contador sube XML v4.3]):::inicioFin
+    API[💻 API Fastify recibe archivo e identifica usuario]:::proceso
+    S3[(☁️ AWS S3: Guarda XML original)]:::externo
+    DB_PENDIENTE[(🗄️ Postgres: Registro PENDIENTE)]:::bd
+    
+    PARSER[⚙️ Microservicio FastAPI Inicia Parseo]:::proceso
+    
+    VAL_XML{¿XML bien formado y libre de XXE?}:::decision
+    VAL_SCHEMA{¿Cumple esquema Pydantic v4.3?}:::decision
+    VAL_MONEDA{¿Es Moneda Extranjera?}:::decision
+    VAL_SSRF{¿Destino BCCR en Allowlist?}:::decision
+    
+    API_BCCR[🏦 BCCR: Obtiene tipo de cambio del día]:::externo
+    CALCULO[📊 Extracción de Tributos, IVA y Exoneraciones]:::proceso
+    
+    DB_RECHAZADA[(🗄️ Postgres: Actualiza a RECHAZADA)]:::bd
+    DB_PROCESADA[(🗄️ Postgres: Actualiza a PROCESADA)]:::bd
+    
+    FIN_ERROR([❌ Fin: Notifica Error al Usuario]):::inicioFin
+    FIN_EXITO([✅ Fin: Notifica Éxito al Usuario]):::inicioFin
+
+    %% Flujo
+    INICIO --> API
+    API --> S3
+    API --> DB_PENDIENTE
+    DB_PENDIENTE --> PARSER
+    
+    PARSER --> VAL_XML
+    VAL_XML -- No --> DB_RECHAZADA
+    VAL_XML -- Sí --> VAL_SCHEMA
+    
+    VAL_SCHEMA -- No --> DB_RECHAZADA
+    VAL_SCHEMA -- Sí --> VAL_MONEDA
+    
+    VAL_MONEDA -- Sí --> VAL_SSRF
+    VAL_MONEDA -- No --> CALCULO
+    
+    VAL_SSRF -- No --> DB_RECHAZADA
+    VAL_SSRF -- Sí --> API_BCCR
+    
+    API_BCCR --> CALCULO
+    CALCULO --> DB_PROCESADA
+    
+    DB_RECHAZADA --> FIN_ERROR
+    DB_PROCESADA --> FIN_EXITO
