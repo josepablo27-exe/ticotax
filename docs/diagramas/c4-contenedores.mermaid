@@ -1,0 +1,47 @@
+flowchart TD
+    classDef actor fill:#08427B,stroke:#052E56,stroke-width:2px,color:#FFF,rx:35px,ry:35px;
+    classDef frontend fill:#1168BD,stroke:#0B4884,stroke-width:2px,color:#FFF;
+    classDef backend fill:#438DD5,stroke:#2F6395,stroke-width:2px,color:#FFF;
+    classDef bd fill:#27AE60,stroke:#1E8449,stroke-width:2px,color:#FFF;
+    classDef infra fill:#F39C12,stroke:#B9770E,stroke-width:2px,color:#FFF;
+    classDef boundary fill:#F8F9FA,stroke:#7F8C8D,stroke-width:2px,stroke-dasharray: 5 5,color:#2C3E50;
+
+    %% ==========================================
+    %% Nodos y Contenedores
+    %% ==========================================
+    USER(["👤 Contador / Empresa\n[Roles: ADMIN, CONTADOR, EMPRESA]"]):::actor
+
+    subgraph AWS ["☁️ AWS us-east-1 (Nube)"]
+        direction TB
+        CF["AWS CloudFront\n[CDN + WAF]"]:::infra
+        SPA["💻 React PWA\n[React 18 + Vite]"]:::frontend
+
+        subgraph EKS ["☸️ Kubernetes Cluster (AWS EKS)"]
+            direction TB
+            API["🚀 API Fastify\n[Node.js 24 | 3 Replicas]"]:::backend
+            PARSER["⚙️ Parser FastAPI\n[Python 3.14 | 2 Replicas]"]:::backend
+            PGB["🔄 PgBouncer\n[Pool x20]"]:::infra
+            REDIS[("🔴 Redis 7\n[Cache & Rate Limit]")]:::bd
+        end
+
+        RDS[("🗄️ AWS RDS PostgreSQL\n[Multi-AZ]")]:::bd
+        S3[("☁️ AWS S3 + Glacier\n[Almacenamiento XML]")]:::bd
+        SES["📧 AWS SES + SQS\n[Correos Transaccionales]"]:::infra
+    end
+
+    %% ==========================================
+    %% Relaciones
+    %% ==========================================
+    USER -- "Ingresa al sistema\n[HTTPS]" --> CF
+    CF -- "Sirve archivos estáticos\n[ /* ]" --> SPA
+    CF -- "Enruta peticiones REST\n[ /api/* ]" --> API
+    
+    API -- "Parsea XML de Hacienda\n[HTTP Interno]" --> PARSER
+    API -- "Verifica Rate Limit\n[REDIS_URL]" --> REDIS
+    API -- "Guarda/Recupera XML\n[s3_key]" --> S3
+    API -- "Envía notificaciones\n[SMTP 587]" --> SES
+    
+    API -- "Consultas SQL" --> PGB
+    PGB -- "Pool de conexiones\n[Puerto 5432]" --> RDS
+
+    class AWS,EKS boundary
