@@ -1,0 +1,80 @@
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'primaryColor': '#EBF5FB',
+    'primaryBorderColor': '#2980B9',
+    'primaryTextColor': '#2C3E50',
+    'lineColor': '#2C3E50',
+    'fontFamily': 'arial'
+  }
+}}%%
+erDiagram
+
+    USUARIOS {
+        uuid id PK
+        varchar nombre
+        citext email UK
+        varchar password_hash
+        varchar rol
+        varchar cedula
+        varchar telefono
+        boolean activo
+        boolean email_verificado
+        timestamptz ultimo_acceso
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    ENTIDADES {
+        uuid id PK
+        uuid owner_id FK
+        varchar cedula_juridica UK
+        varchar nombre
+        boolean activo
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    VINCULOS_CONTABLES {
+        uuid id PK
+        uuid entidad_id FK
+        uuid contador_id FK
+        varchar estado
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    FACTURAS {
+        uuid id PK
+        uuid entidad_id FK
+        char_50 clave_hacienda UK
+        char_64 xml_content_hash
+        varchar numero_consecutivo
+        varchar tipo_documento
+        varchar emisor_cedula
+        varchar emisor_nombre
+        varchar receptor_cedula
+        timestamptz fecha_emision
+        timestamptz fecha_ingestion
+        char_3 moneda
+        numeric_10_4 tipo_cambio
+        numeric_18_5 monto_total
+        numeric_18_5 monto_total_colones
+        numeric_18_5 monto_iva
+        numeric_18_5 monto_exonerado
+        numeric_18_5 monto_exento
+        varchar estado
+        varchar motivo_rechazo
+        varchar s3_key
+        int processing_attempts
+        uuid procesada_por FK
+        varchar notas_contador
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    USUARIOS ||--o{ ENTIDADES : "es dueño de"
+    USUARIOS ||--o{ VINCULOS_CONTABLES : "es contador en"
+    ENTIDADES ||--o{ VINCULOS_CONTABLES : "delega en"
+    ENTIDADES ||--o{ FACTURAS : "recibe"
+    USUARIOS |o--o{ FACTURAS : "procesa"
