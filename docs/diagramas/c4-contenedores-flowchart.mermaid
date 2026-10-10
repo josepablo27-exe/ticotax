@@ -1,0 +1,55 @@
+flowchart TD
+    classDef actor fill:#08427B,stroke:#052E56,stroke-width:2px,color:#FFF,rx:35px,ry:35px;
+    classDef frontend fill:#1168BD,stroke:#0B4884,stroke-width:2px,color:#FFF;
+    classDef backend fill:#438DD5,stroke:#2F6395,stroke-width:2px,color:#FFF;
+    classDef bd fill:#27AE60,stroke:#1E8449,stroke-width:2px,color:#FFF;
+    classDef infra fill:#F39C12,stroke:#B9770E,stroke-width:2px,color:#FFF;
+    classDef boundary fill:#F8F9FA,stroke:#7F8C8D,stroke-width:2px,stroke-dasharray: 5 5,color:#2C3E50;
+
+    INTERNET(["👤 Contador / Empresa\n[Internet]"])
+    
+    subgraph AWS ["☁️ AWS us-east-1 (Nube)"]
+        direction TB
+        
+        subgraph CDN ["AWS CloudFront (CDN + WAF)"]
+            direction LR
+            RUTA_API["Enrutador API Gateway\n[ /api/* ]"]
+            RUTA_SPA["💻 React PWA\n[ /* estáticos ]"]
+        end
+
+        subgraph EKS ["☸️ Kubernetes Cluster (AWS EKS)"]
+            direction TB
+            API["🚀 API Fastify\n[Node.js 24 | :3000 x3]"]
+            PARSER["⚙️ Parser FastAPI\n[Python 3.14 | :8000 x2]"]
+            PGB["🔄 PgBouncer\n[Pool x20]"]
+            REDIS[("🔴 Redis 7\n[r7g.large]")]
+        end
+
+        RDS[("🗄️ AWS RDS\n[PostgreSQL 15 Multi-AZ]")]
+        S3[("☁️ AWS S3 + Glacier\n[Cifrado KMS]")]
+        SES["📧 AWS SES + SQS\n[Correos Transaccionales]"]
+    end
+
+    %% ==========================================
+    %% Relaciones Explícitas (Líneas Sólidas)
+    %% ==========================================
+    INTERNET -- "Tráfico Web\n[HTTPS]" --> CDN
+    RUTA_API -- "Peticiones REST" --> API
+    
+    API -- "Parsea XML" --> PARSER
+    API -- "Consultas SQL" --> PGB
+    PGB -- "Pool de conexiones\n[Puerto 5432]" --> RDS
+
+    %% ==========================================
+    %% Relaciones Documentadas (Líneas Punteadas)
+    %% ==========================================
+    API -. "Cache & Rate Limit\n[REDIS_URL]" .-> REDIS
+    API -. "Guarda y recupera XML\n[s3_key]" .-> S3
+    API -. "Envía notificaciones\n[SMTP 587]" .-> SES
+
+    class INTERNET actor
+    class AWS,EKS boundary
+    class RUTA_API frontend
+    class API,PARSER,PGB backend
+    class REDIS,S3,SES,RDS bd
+    class RUTA_API,RDS,S3,SES frontend,infra,bd
