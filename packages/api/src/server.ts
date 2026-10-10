@@ -2,7 +2,7 @@
 // TicoTax SaaS — API Gateway (Fastify)
 // Épica TICOTAX-100 | Sprint 3 | Historia TICOTAX-105
 //
-// Autenticación JWT: register, login y refresh (3 endpoints).
+// Autenticación + perfil del usuario (4 endpoints).
 // Los plugins y controladores están separados en archivos dedicados.
 //
 // [D] Plan Maestro PARTE 2.1: "Node.js + TypeScript + Fastify | 24.x / 4.x"
@@ -11,7 +11,7 @@
 // =============================================================================
 
 import 'dotenv/config';
-import Fastify, { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import Fastify, { FastifyInstance, FastifyRequest, FastifyReply, FastifyBaseLogger } from 'fastify';
 import fastifyJwt from '@fastify/jwt';
 import fastifyHelmet from '@fastify/helmet';
 import fastifyRateLimit from '@fastify/rate-limit';
@@ -26,6 +26,7 @@ import { verifyJWT } from './verify-jwt.plugin';
 
 // Controladores
 import { AuthController } from './auth.controller';
+import { UsuarioController } from './usuario.controller';
 
 // =============================================================================
 // EXTENSIÓN DE TIPOS PARA FASTIFY
@@ -61,7 +62,7 @@ let isReady = false;
 
 async function createApp() {
   const instance = Fastify({
-    logger: logger as any,
+    logger: logger as unknown as FastifyBaseLogger,
     requestIdLogLabel: 'reqId',
     disableRequestLogging: false,
     requestTimeout: 30000,
@@ -134,6 +135,7 @@ async function createApp() {
   // ---------------------------------------------------------------------------
 
   const authController = new AuthController(prisma);
+  const usuarioController = new UsuarioController(prisma);
 
   // ---------------------------------------------------------------------------
   // HEALTHCHECKS
@@ -183,6 +185,9 @@ async function createApp() {
           register: 'POST /auth/register',
           login: 'POST /auth/login',
           refresh: 'POST /auth/refresh',
+        },
+        usuarios: {
+          me: 'GET /usuarios/me',
         },
       },
     });
@@ -250,6 +255,14 @@ async function createApp() {
   });
 
   // ---------------------------------------------------------------------------
+  // RUTAS — USUARIOS (Protegidas)
+  // ==========================================================================
+
+  instance.get<{ Params: {} }>('/usuarios/me', { onRequest: [instance.verifyJWT] }, (request, reply) =>
+    usuarioController.getMe(request, reply)
+  );
+
+  // ---------------------------------------------------------------------------
   // HOOKS DEL CICLO DE VIDA
   // ---------------------------------------------------------------------------
 
@@ -304,7 +317,7 @@ async function start() {
         host: HOST,
         port: PORT,
         version: '0.1.0',
-        endpoints: 3,
+        endpoints: 4,
       },
       'TicoTax API iniciada y escuchando'
     );

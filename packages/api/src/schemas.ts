@@ -49,6 +49,23 @@ export const AuthResponseSchema = z.object({
 export type AuthResponse = z.infer<typeof AuthResponseSchema>;
 
 // ---------------------------------------------------------------------------
+// USUARIO SCHEMAS
+// ---------------------------------------------------------------------------
+
+export const MeResponseSchema = z.object({
+  id: z.string(),
+  email: z.string(),
+  nombre: z.string(),
+  rol: z.enum(['ADMIN', 'CONTADOR', 'EMPRESA']),
+  cedula: z.string().nullable().optional(),
+  activo: z.boolean(),
+  emailVerificado: z.boolean(),
+  createdAt: z.union([z.string(), z.date()]),
+});
+
+export type MeResponse = z.infer<typeof MeResponseSchema>;
+
+// ---------------------------------------------------------------------------
 // JWT PAYLOAD SCHEMA
 // [D] PARTE 3.1: Estructura del JWT
 // ---------------------------------------------------------------------------
