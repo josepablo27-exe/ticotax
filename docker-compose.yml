@@ -2,8 +2,6 @@
 # TicoTax SaaS — Entorno de desarrollo local
 # Épica TICOTAX-100 | Sprint 1 (Semanas 1 y 2) | Historia TICOTAX-102
 # DoD cubierto: "Entorno local funcional con Docker Compose"
-# Servicios de datos (PostgreSQL, PgBouncer, Redis).
-# Los servicios de la aplicación (parser, api, frontend) se agregan más adelante.
 # =============================================================================
 
 name: ticotax
@@ -96,6 +94,105 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+    logging: *default-logging
+    networks: [ticotax-net]
+
+  # ===========================================================================
+  # Microservicio Parser — Python 3.13 + FastAPI
+  # ===========================================================================
+  parser:
+    build:
+      context: ./packages/parser
+      dockerfile: Dockerfile.dev
+    container_name: ticotax-parser
+    restart: unless-stopped
+    environment:
+      PORT: "8000"
+      LOG_LEVEL: ${LOG_LEVEL}
+      TZ: ${CR_TIMEZONE}
+      BCCR_ALLOWED_HOST: ${BCCR_ALLOWED_HOST}
+    volumes:
+      - ./packages/parser:/app
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health/live').status==200 else 1)\""]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging: *default-logging
+    networks: [ticotax-net]
+
+  # ===========================================================================
+  # API Gateway — Node.js 20 + TypeScript + Fastify
+  # ===========================================================================
+  api:
+    build:
+      context: ./packages/api
+      dockerfile: Dockerfile.dev
+    container_name: ticotax-api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      LOG_LEVEL: ${LOG_LEVEL}
+      PORT: "3000"
+      PARSER_SERVICE_URL: http://parser:8000
+      REDIS_URL: redis://redis:6379
+      CR_TIMEZONE: ${CR_TIMEZONE}
+      BCRYPT_ROUNDS: ${BCRYPT_ROUNDS}
+      JWT_EXPIRY: ${JWT_EXPIRY}
+      REFRESH_TOKEN_EXPIRY: ${REFRESH_TOKEN_EXPIRY}
+      TZ: ${CR_TIMEZONE}
+      JWT_SECRET: ${JWT_SECRET}
+      # FIX: Apuntando a pgbouncer en el puerto 5432
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgbouncer:5432/${POSTGRES_DB}?pgbouncer=true&connection_limit=1
+      DIRECT_DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    volumes:
+      - ./packages/api:/app
+      - ./packages/shared:/shared:ro
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      parser:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/health/live || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    stop_grace_period: 30s
+    logging: *default-logging
+    networks: [ticotax-net]
+
+  # ===========================================================================
+  # Frontend — React 18 + TypeScript + Vite
+  # ===========================================================================
+  frontend:
+    build:
+      context: ./packages/frontend
+      dockerfile: Dockerfile.dev
+    container_name: ticotax-frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+      VITE_CR_TIMEZONE: ${CR_TIMEZONE}
+      TZ: ${CR_TIMEZONE}
+    volumes:
+      - ./packages/frontend:/app
+      - ./packages/shared:/shared:ro
+      - /app/node_modules
+    ports:
+      - "${FRONTEND_PORT_HOST:-5173}:5173"
+    depends_on:
+      api:
+        condition: service_started
     logging: *default-logging
     networks: [ticotax-net]
 
