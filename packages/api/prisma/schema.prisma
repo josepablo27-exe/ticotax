@@ -1,0 +1,88 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+// Extensiones requeridas por infra/postgres/init/init.sql (TICOTAX-104).
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgcrypto, pgTrgm(map: "pg_trgm"), unaccent]
+}
+
+model usuario {
+  id              String    @id @default(uuid())
+  email           String    @unique
+  nombre          String
+  passwordHash    String    @map("password_hash")
+  cedula          String?
+  rol             String    @default("CONTADOR")
+  activo          Boolean   @default(true)
+  emailVerificado Boolean   @default(false) @map("email_verificado")
+  ultimoAcceso    DateTime? @map("ultimo_acceso")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  entidades       entidad[]
+  vinculosComoContador vinculoContable[] @relation("VinculoContador")
+
+  @@map("usuarios")
+}
+
+model entidad {
+  id             String    @id @default(uuid())
+  ownerId        String    @map("owner_id")
+  nombre         String
+  cedulaJuridica String?   @map("cedula_juridica")
+  tipoCedula     String?   @map("tipo_cedula")
+  email          String?
+  activo         Boolean   @default(true)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  owner          usuario   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  facturas       factura[]
+  vinculos       vinculoContable[]
+
+  // Toda consulta de entidades filtra por ownerId (verificación de
+  // propiedad en cada request autenticada); sin este índice es table scan.
+  @@index([ownerId])
+  @@map("entidades")
+}
+
+// TICOTAX-104 — tabla [EXTRAPOLADA] en init.sql (sección 3.6): relación N:M
+// entre un usuario CONTADOR y una entidad. Alimenta verifyEntityOwnership.
+// estado: 'ACTIVO' | 'EN_DISPUTA' | 'EN_CIERRE' (CHECK vive en init.sql;
+// Prisma db push no declara CHECK constraints, se valida en capa Zod/app).
+model vinculoContable {
+  id          String   @id @default(uuid())
+  entidadId   String   @map("entidad_id")
+  contadorId  String   @map("contador_id")
+  estado      String   @default("ACTIVO")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  entidad     entidad  @relation(fields: [entidadId], references: [id], onDelete: Cascade)
+  contador    usuario  @relation("VinculoContador", fields: [contadorId], references: [id])
+
+  @@unique([entidadId, contadorId])
+  @@index([contadorId, estado])
+  @@map("vinculos_contables")
+}
+
+model factura {
+  id             String    @id @default(uuid())
+  entidadId      String    @map("entidad_id")
+  monto          Float
+  moneda         String    @default("CRC")
+  descripcion    String?
+  estado         String    @default("PENDIENTE")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  entidad        entidad   @relation(fields: [entidadId], references: [id], onDelete: Cascade)
+
+  // Todo listado/creación de facturas filtra por entidadId.
+  @@index([entidadId])
+  @@map("facturas")
+}
