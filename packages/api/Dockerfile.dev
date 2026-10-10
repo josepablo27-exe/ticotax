@@ -1,0 +1,39 @@
+# =============================================================================
+# TicoTax — API (Node.js 24 + TypeScript + Fastify) — SOLO DESARROLLO LOCAL
+# Historia TICOTAX-102
+#
+# PARTE 2.1: "Backend API | Node.js + TypeScript + Fastify | 24.x / 4.x"
+# PARTE 2.1: "Contenedores | Docker (multi-stage) | Imágenes < 150MB via Alpine"
+#
+# ⚠ Este archivo es el de DEV (una sola etapa, con hot reload).
+#   El Dockerfile multi-stage de producción corresponde a la Épica TICOTAX-400
+#   (TICOTAX-401/402). No lo genero acá para no adelantar Sprints.
+# =============================================================================
+FROM node:24-alpine
+
+# Factor IX (Disposability): dumb-init reenvía SIGTERM al proceso Node para
+# permitir el graceful shutdown en < 30s.
+# FIX: Se añade openssl para habilitar el cliente de Prisma.
+RUN apk add --no-cache dumb-init openssl
+
+WORKDIR /app
+
+# Factor II (Dependencies): las deps se declaran en package.json y se instalan
+# con `npm ci`, que respeta package-lock.json exactamente (PARTE 4.1, A06).
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+
+# FIX: Generar el cliente de Prisma directamente en la imagen de Docker
+# para garantizar su existencia antes de montar volúmenes.
+RUN npx prisma generate
+
+# Factor VII (Port binding): la API expone el 3000 sin servidor externo.
+EXPOSE 3000
+
+# Factor VI: proceso no-root, alineado con el securityContext de K8s (PARTE 8.3)
+USER node
+
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["npm", "run", "dev"]

@@ -1,0 +1,69 @@
+# =============================================================================
+# TicoTax SaaS — terraform.tfvars.example
+# Épica TICOTAX-100 | Sprint 2 | Historia TICOTAX-104
+#
+# INSTRUCCIONES:
+#   1. Copiar este archivo: cp terraform.tfvars.example terraform.tfvars
+#   2. Rellenar los valores reales (especialmente rds_password)
+#   3. NUNCA commitear terraform.tfvars — está en .gitignore
+#
+# [D] Plan Maestro PARTE 4.3: "terraform.tfvars" en .gitignore
+# =============================================================================
+
+# ----------------------------------------------------------
+# GLOBALES
+# ----------------------------------------------------------
+aws_region  = "us-east-1"
+environment = "dev"     # "dev" | "staging" | "prod"
+project     = "ticotax"
+
+# ----------------------------------------------------------
+# VPC
+# ----------------------------------------------------------
+vpc_cidr             = "10.0.0.0/16"
+availability_zones   = ["us-east-1a", "us-east-1b", "us-east-1c"]
+public_subnet_cidrs  = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
+private_subnet_cidrs = ["10.0.10.0/24", "10.0.11.0/24", "10.0.12.0/24"]
+
+# ----------------------------------------------------------
+# RDS — PostgreSQL 15
+# FinOps: db.t3.micro en dev, db.t3.medium en prod
+# ----------------------------------------------------------
+rds_instance_class        = "db.t3.micro"
+rds_allocated_storage     = 20
+rds_max_allocated_storage = 100
+rds_db_name               = "ticotax"
+rds_username              = "ticotax_admin"
+rds_password              = "CAMBIAR_POR_PASSWORD_SEGURO_MIN16CHARS!"
+rds_multi_az              = false   # true en prod
+rds_backup_retention_days = 7
+
+# ----------------------------------------------------------
+# ELASTICACHE — Redis 7
+# FinOps: cache.t3.micro en dev, cache.r7g.large en prod
+# ----------------------------------------------------------
+redis_node_type    = "cache.t3.micro"
+redis_num_nodes    = 1
+redis_engine_version = "7.1"
+
+# ----------------------------------------------------------
+# EKS — Kubernetes 1.29+
+# ----------------------------------------------------------
+eks_cluster_version     = "1.29"
+eks_node_instance_types = ["t3.medium"]
+eks_node_desired_size   = 2
+eks_node_min_size       = 1
+eks_node_max_size       = 5
+
+# ----------------------------------------------------------
+# S3 LIFECYCLE (FinOps)
+# 365 días → STANDARD_IA | 1460 días → GLACIER
+# ----------------------------------------------------------
+s3_lifecycle_standard_ia_days = 365
+s3_lifecycle_glacier_days     = 1460
+
+# ----------------------------------------------------------
+# SQS
+# ----------------------------------------------------------
+sqs_message_retention_seconds  = 86400   # 24 horas
+sqs_visibility_timeout_seconds = 300     # 5 minutos

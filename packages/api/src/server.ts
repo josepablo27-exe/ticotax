@@ -11,7 +11,7 @@
 // =============================================================================
 
 import 'dotenv/config';
-import Fastify, { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import Fastify, { FastifyInstance, FastifyRequest, FastifyReply, FastifyBaseLogger } from 'fastify';
 import fastifyJwt from '@fastify/jwt';
 import fastifyHelmet from '@fastify/helmet';
 import fastifyRateLimit from '@fastify/rate-limit';
@@ -62,7 +62,7 @@ let isReady = false;
 
 async function createApp() {
   const instance = Fastify({
-    logger: logger as any,
+    logger: logger as unknown as FastifyBaseLogger,
     requestIdLogLabel: 'reqId',
     disableRequestLogging: false,
     requestTimeout: 30000,

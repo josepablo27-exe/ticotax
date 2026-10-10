@@ -1,0 +1,32 @@
+# =============================================================================
+# TicoTax — Frontend (React 18 + TypeScript + Vite) — SOLO DESARROLLO LOCAL
+# Historia TICOTAX-102 (el código de la maqueta es TICOTAX-203, Sprint 5)
+#
+# PARTE 2.1: "Frontend | React + TypeScript + Vite | 18.x / 5.x"
+#
+# ⚠ En producción el frontend NO corre en un contenedor: el Plan Maestro
+#   (PARTE 2.2) lo sirve como estático desde S3 + CloudFront. Este contenedor
+#   existe solo para el dev server con HMR.
+# =============================================================================
+FROM node:24-alpine
+
+WORKDIR /app
+
+# Factor II (Dependencies): npm ci respeta package-lock.json exactamente.
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+
+# FIX: Pre-crear la carpeta de caché de Vite y asegurar que el usuario 'node'
+# sea el dueño absoluto de todo el directorio y los node_modules. Esto evita 
+# el error EACCES cuando Docker monta el volumen anónimo.
+RUN mkdir -p /app/node_modules/.vite && chown -R node:node /app
+
+EXPOSE 5173
+
+USER node
+
+# --host 0.0.0.0 es obligatorio dentro de Docker: por defecto Vite escucha en
+# 127.0.0.1 y el port mapping del host no alcanzaría el proceso.
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]

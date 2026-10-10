@@ -1,0 +1,93 @@
+flowchart TD
+    classDef inicioFin fill:#2C3E50,stroke:#1A252F,stroke-width:2px,color:#FFF,rx:15px;
+    classDef proceso fill:#EBF5FB,stroke:#2980B9,stroke-width:2px,color:#2C3E50;
+    classDef decision fill:#FDEDEC,stroke:#C0392B,stroke-width:2px,color:#2C3E50;
+    classDef bd fill:#EAFAF1,stroke:#27AE60,stroke-width:2px,color:#2C3E50;
+    classDef seguridad fill:#FEF9E7,stroke:#F1C40F,stroke-width:2px,color:#2C3E50;
+
+    subgraph Flujo_Registro [1. Proceso de Registro de Usuario]
+        direction TB
+        R_INICIO([👤 Inicio: Envía datos de registro])
+        R_ZOD[🛡️ Zod: Validación de esquema]
+        R_VAL_ZOD{¿Body válido?}
+        
+        R_DB_CHECK[(🗄️ Postgres: Consulta email)]
+        R_VAL_EMAIL{¿Email ya existe?}
+        
+        R_HASH[⚙️ Bcrypt: Genera Hash 12 Rounds]
+        R_DB_INSERT[(🗄️ Postgres: Inserta nuevo usuario)]
+        
+        R_JWT[🔑 JWT: Genera Access & Refresh Tokens]
+        R_REDIS[(🔴 Redis: Almacena Refresh Token)]
+        
+        R_FIN_ERR_400([❌ Fin: 400 Bad Request])
+        R_FIN_ERR_409([❌ Fin: 409 Conflict])
+        R_FIN_OK([✅ Fin: 201 Usuario Creado + Tokens])
+
+        R_INICIO --> R_ZOD
+        R_ZOD --> R_VAL_ZOD
+        R_VAL_ZOD -- No --> R_FIN_ERR_400
+        R_VAL_ZOD -- Sí --> R_DB_CHECK
+        
+        R_DB_CHECK --> R_VAL_EMAIL
+        R_VAL_EMAIL -- Sí --> R_FIN_ERR_409
+        R_VAL_EMAIL -- No --> R_HASH
+        
+        R_HASH --> R_DB_INSERT
+        R_DB_INSERT --> R_JWT
+        R_JWT --> R_REDIS
+        R_REDIS --> R_FIN_OK
+    end
+
+    subgraph Flujo_Login [2. Proceso de Login y Emisión de Tokens]
+        direction TB
+        L_INICIO([👤 Inicio: Envía credenciales])
+        L_DB_CHECK[(🗄️ Postgres: Busca usuario por email)]
+        L_VAL_USER{¿Usuario existe?}
+        
+        L_BCRYPT[⚙️ Bcrypt: Compara contraseñas]
+        L_VAL_PASS{¿Password correcto?}
+        
+        L_JWT[🔑 JWT: Genera Nuevos Tokens]
+        L_REDIS[(🔴 Redis: Actualiza Refresh Token)]
+        L_DB_UPDATE[(🗄️ Postgres: Actualiza último_acceso)]
+        
+        L_FIN_ERR([❌ Fin: 401 Credenciales Inválidas])
+        L_FIN_OK([✅ Fin: 200 OK + Tokens])
+
+        L_INICIO --> L_DB_CHECK
+        L_DB_CHECK --> L_VAL_USER
+        L_VAL_USER -- No --> L_FIN_ERR
+        L_VAL_USER -- Sí --> L_BCRYPT
+        
+        L_BCRYPT --> L_VAL_PASS
+        L_VAL_PASS -- No --> L_FIN_ERR
+        L_VAL_PASS -- Sí --> L_JWT
+        
+        L_JWT --> L_REDIS
+        L_REDIS --> L_DB_UPDATE
+        L_DB_UPDATE --> L_FIN_OK
+    end
+
+    subgraph Flujo_Auth [3. Validación de Request Protegida]
+        direction TB
+        V_INICIO([👤 Inicio: Request a ruta protegida con Bearer Token])
+        V_VERIFY[🛡️ Plugin JWT: Verifica firma y expiración]
+        V_VAL_TOKEN{¿Token válido?}
+        
+        V_INJECT[⚙️ API: Inyecta payload en request.user]
+        V_FIN_ERR([❌ Fin: 401 Unauthorized])
+        V_FIN_OK([✅ Fin: 200 Retorna Recurso Solicitado])
+
+        V_INICIO --> V_VERIFY
+        V_VERIFY --> V_VAL_TOKEN
+        V_VAL_TOKEN -- No --> V_FIN_ERR
+        V_VAL_TOKEN -- Sí --> V_INJECT
+        V_INJECT --> V_FIN_OK
+    end
+
+    class R_INICIO,R_FIN_ERR_400,R_FIN_ERR_409,R_FIN_OK,L_INICIO,L_FIN_ERR,L_FIN_OK,V_INICIO,V_FIN_ERR,V_FIN_OK inicioFin;
+    class R_ZOD,p15 proceso;
+    class R_VAL_ZOD,R_VAL_EMAIL,L_VAL_USER,L_VAL_PASS,V_VAL_TOKEN decision;
+    class R_DB_CHECK,R_DB_INSERT,L_DB_CHECK,L_DB_UPDATE bd;
+    class R_HASH,R_JWT,V_INJECT seguridad;
