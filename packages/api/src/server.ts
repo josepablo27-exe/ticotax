@@ -2,7 +2,7 @@
 // TicoTax SaaS — API Gateway (Fastify)
 // Épica TICOTAX-100 | Sprint 3 | Historia TICOTAX-105
 //
-// Autenticación + perfil del usuario (4 endpoints).
+// Autenticación, usuarios y entidades (6 endpoints).
 // Los plugins y controladores están separados en archivos dedicados.
 //
 // [D] Plan Maestro PARTE 2.1: "Node.js + TypeScript + Fastify | 24.x / 4.x"
@@ -11,7 +11,7 @@
 // =============================================================================
 
 import 'dotenv/config';
-import Fastify, { FastifyInstance, FastifyRequest, FastifyReply, FastifyBaseLogger } from 'fastify';
+import Fastify, { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import fastifyJwt from '@fastify/jwt';
 import fastifyHelmet from '@fastify/helmet';
 import fastifyRateLimit from '@fastify/rate-limit';
@@ -27,6 +27,7 @@ import { verifyJWT } from './verify-jwt.plugin';
 // Controladores
 import { AuthController } from './auth.controller';
 import { UsuarioController } from './usuario.controller';
+import { EntidadController } from './entidad.controller';
 
 // =============================================================================
 // EXTENSIÓN DE TIPOS PARA FASTIFY
@@ -42,9 +43,11 @@ import {
   RegisterSchema,
   LoginSchema,
   RefreshSchema,
+  EntidadCreateSchema,
   RegisterInput,
   LoginInput,
   RefreshInput,
+  EntidadCreateInput,
 } from './schemas';
 
 // =============================================================================
@@ -62,7 +65,7 @@ let isReady = false;
 
 async function createApp() {
   const instance = Fastify({
-    logger: logger as unknown as FastifyBaseLogger,
+    logger: logger as any,
     requestIdLogLabel: 'reqId',
     disableRequestLogging: false,
     requestTimeout: 30000,
@@ -136,6 +139,7 @@ async function createApp() {
 
   const authController = new AuthController(prisma);
   const usuarioController = new UsuarioController(prisma);
+  const entidadController = new EntidadController(prisma);
 
   // ---------------------------------------------------------------------------
   // HEALTHCHECKS
@@ -188,6 +192,10 @@ async function createApp() {
         },
         usuarios: {
           me: 'GET /usuarios/me',
+        },
+        entidades: {
+          list: 'GET /entidades',
+          create: 'POST /entidades',
         },
       },
     });
@@ -263,6 +271,33 @@ async function createApp() {
   );
 
   // ---------------------------------------------------------------------------
+  // RUTAS — ENTIDADES (Protegidas)
+  // ==========================================================================
+
+  instance.get<{ Querystring: { page?: string; limit?: string } }>(
+    '/entidades',
+    { onRequest: [instance.verifyJWT] },
+    (request, reply) => entidadController.list(request, reply)
+  );
+
+  instance.post<{ Body: EntidadCreateInput }>('/entidades', { onRequest: [instance.verifyJWT] }, async (request, reply) => {
+    try {
+      request.body = EntidadCreateSchema.parse(request.body);
+      return await entidadController.create(request, reply);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        return reply.status(400).send({
+          statusCode: 400,
+          message: 'Validación fallida',
+          errors: error.errors,
+          timestamp: new Date().toISOString(),
+        });
+      }
+      throw error;
+    }
+  });
+
+  // ---------------------------------------------------------------------------
   // HOOKS DEL CICLO DE VIDA
   // ---------------------------------------------------------------------------
 
@@ -317,7 +352,7 @@ async function start() {
         host: HOST,
         port: PORT,
         version: '0.1.0',
-        endpoints: 4,
+        endpoints: 6,
       },
       'TicoTax API iniciada y escuchando'
     );
