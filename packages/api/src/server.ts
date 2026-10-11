@@ -2,7 +2,7 @@
 // TicoTax SaaS — API Gateway (Fastify)
 // Épica TICOTAX-100 | Sprint 3 | Historia TICOTAX-105
 //
-// Autenticación, usuarios y entidades (6 endpoints).
+// Código COMPLETO para autenticación y 9 endpoints iniciales.
 // Los plugins y controladores están separados en archivos dedicados.
 //
 // [D] Plan Maestro PARTE 2.1: "Node.js + TypeScript + Fastify | 24.x / 4.x"
@@ -28,6 +28,7 @@ import { verifyJWT } from './verify-jwt.plugin';
 import { AuthController } from './auth.controller';
 import { UsuarioController } from './usuario.controller';
 import { EntidadController } from './entidad.controller';
+import { FacturaController } from './factura.controller';
 
 // =============================================================================
 // EXTENSIÓN DE TIPOS PARA FASTIFY
@@ -44,10 +45,12 @@ import {
   LoginSchema,
   RefreshSchema,
   EntidadCreateSchema,
+  FacturaCreateSchema,
   RegisterInput,
   LoginInput,
   RefreshInput,
   EntidadCreateInput,
+  FacturaCreateInput,
 } from './schemas';
 
 // =============================================================================
@@ -140,6 +143,7 @@ async function createApp() {
   const authController = new AuthController(prisma);
   const usuarioController = new UsuarioController(prisma);
   const entidadController = new EntidadController(prisma);
+  const facturaController = new FacturaController(prisma);
 
   // ---------------------------------------------------------------------------
   // HEALTHCHECKS
@@ -196,6 +200,11 @@ async function createApp() {
         entidades: {
           list: 'GET /entidades',
           create: 'POST /entidades',
+        },
+        facturas: {
+          list: 'GET /facturas?entidadId=<id>',
+          create: 'POST /facturas',
+          getById: 'GET /facturas/:id',
         },
       },
     });
@@ -298,6 +307,37 @@ async function createApp() {
   });
 
   // ---------------------------------------------------------------------------
+  // RUTAS — FACTURAS (Protegidas)
+  // ==========================================================================
+
+  instance.get<{ Querystring: { entidadId?: string; page?: string; limit?: string } }>(
+    '/facturas',
+    { onRequest: [instance.verifyJWT] },
+    (request, reply) => facturaController.list(request, reply)
+  );
+
+  instance.post<{ Body: FacturaCreateInput }>('/facturas', { onRequest: [instance.verifyJWT] }, async (request, reply) => {
+    try {
+      request.body = FacturaCreateSchema.parse(request.body);
+      return await facturaController.create(request, reply);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        return reply.status(400).send({
+          statusCode: 400,
+          message: 'Validación fallida',
+          errors: error.errors,
+          timestamp: new Date().toISOString(),
+        });
+      }
+      throw error;
+    }
+  });
+
+  instance.get<{ Params: { id: string } }>('/facturas/:id', { onRequest: [instance.verifyJWT] }, (request, reply) =>
+    facturaController.getById(request, reply)
+  );
+
+  // ---------------------------------------------------------------------------
   // HOOKS DEL CICLO DE VIDA
   // ---------------------------------------------------------------------------
 
@@ -352,7 +392,7 @@ async function start() {
         host: HOST,
         port: PORT,
         version: '0.1.0',
-        endpoints: 6,
+        endpoints: 9,
       },
       'TicoTax API iniciada y escuchando'
     );
