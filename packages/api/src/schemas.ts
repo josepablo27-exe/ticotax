@@ -66,6 +66,40 @@ export const MeResponseSchema = z.object({
 export type MeResponse = z.infer<typeof MeResponseSchema>;
 
 // ---------------------------------------------------------------------------
+// ENTIDAD SCHEMAS
+// ---------------------------------------------------------------------------
+
+export const EntidadCreateSchema = z.object({
+  nombre: z.string().min(3).max(100),
+  cedulaJuridica: z.string().optional(),
+  tipoCedula: z.string().optional().nullable(),
+  email: z.string().email().optional().nullable().or(z.literal('')),
+});
+
+export type EntidadCreateInput = z.infer<typeof EntidadCreateSchema>;
+
+export const EntidadResponseSchema = z.object({
+  id: z.string(),
+  nombre: z.string(),
+  cedulaJuridica: z.string().nullable().optional(),
+  tipoCedula: z.string().nullable().optional(),
+  email: z.string().nullable().optional(),
+  activo: z.boolean(),
+  createdAt: z.union([z.string(), z.date()]),
+});
+
+export type EntidadResponse = z.infer<typeof EntidadResponseSchema>;
+
+export const EntidadListResponseSchema = z.object({
+  data: z.array(EntidadResponseSchema),
+  total: z.number(),
+  page: z.number(),
+  pageSize: z.number(),
+});
+
+export type EntidadListResponse = z.infer<typeof EntidadListResponseSchema>;
+
+// ---------------------------------------------------------------------------
 // JWT PAYLOAD SCHEMA
 // [D] PARTE 3.1: Estructura del JWT
 // ---------------------------------------------------------------------------
